@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Pink Marketing Planner</title>
+<style>
+*{box-sizing:border-box}
+body{margin:0;font-family:Arial,sans-serif;background:#fff5fa;color:#593d53}
+header{background:linear-gradient(120deg,#f7c9df,#e7d9fa);padding:28px 18px;text-align:center}
+h1{margin:0;color:#874d75;font-size:28px}
+header p{margin:10px 0 0}
+main{max-width:1100px;margin:25px auto;padding:0 15px}
+.panel{background:white;border-radius:18px;padding:18px;margin-bottom:18px;box-shadow:0 3px 14px #e8d6e2}
+input,button,select,textarea{font:inherit;padding:11px;border:1px solid #e8cddd;border-radius:10px;margin:4px;max-width:100%}
+input,textarea{background:#fffafd}
+button{background:#eebbd4;color:#603c54;border:0;cursor:pointer;font-weight:bold}
+button:hover{background:#e6a9c9}
+.secondary{background:#eee5f8}
+.danger{background:#f7d7dc}
+#app{display:none}
+.columns{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:12px}
+.column{background:#fff4f9;border-radius:14px;padding:12px;min-height:150px}
+.column h3{font-size:16px;color:#995e83}
+.task{background:white;border:1px solid #f0dce8;border-radius:12px;padding:12px;margin:9px 0;overflow-wrap:anywhere}
+.task small{display:block;color:#99758d;margin:6px 0}
+.muted{color:#967e91;font-size:13px}
+#message{color:#a34c78}
+</style>
+</head>
+<body>
+<header>
+<h1>🌸 Pink Marketing Planner 🌸</h1>
+<p>Bienvenue Mélanie !</p>
+<p>Ton espace créatif pour organiser tes projets et faire grandir tes idées. Avec amour 💕</p>
+</header>
+<main>
+<section class="panel" id="login">
+<h2>Ton espace personnel 💗</h2>
+<p>Crée ton compte ou connecte-toi avec ton adresse e-mail.</p>
+<input id="email" type="email" placeholder="Ton adresse e-mail">
+<input id="password" type="password" placeholder="Ton mot de passe">
+<br>
+<button id="signup">Créer mon compte</button>
+<button id="signin" class="secondary">Me connecter</button>
+<button id="reset" class="secondary">Mot de passe oublié</button>
+<p id="message"></p>
+</section>
+
+<section id="app">
+<div class="panel">
+<h2>Bonjour Mélanie ! 🌷</h2>
+<p id="who" class="muted"></p>
+<button id="logout" class="secondary">Déconnexion</button>
+</div>
+<div class="panel">
+<h2>Ajouter une tâche ✨</h2>
+<input id="taskTitle" placeholder="Nom de la tâche">
+<input id="client" placeholder="Projet ou client">
+<input id="deadline" type="date">
+<select id="category">
+<option>Marketing</option><option>Réseaux sociaux</option>
+<option>Publication</option><option>Campagne</option>
+<option>Réunion</option><option>Autre</option>
+</select>
+<select id="status">
+<option>À faire</option><option>En cours</option>
+<option>Réunions</option><option>À valider</option><option>Terminé</option>
+</select>
+<br>
+<textarea id="notes" placeholder="Notes ou détails (facultatif)" rows="2" style="width:95%"></textarea>
+<br><button id="add">Ajouter à mon planning</button>
+<p id="taskMessage" class="muted"></p>
+</div>
+<div class="panel">
+<h2>Mon tableau de bord 🌸</h2>
+<p id="progress"></p>
+<div style="background:#f5e5ef;border-radius:20px;height:13px;overflow:hidden">
+<div id="bar" style="height:13px;background:#d78bb5;width:0%"></div>
+</div>
+<br>
+<input id="search" placeholder="Rechercher une tâche...">
+</div>
+<div class="columns" id="columns"></div>
+<div class="panel">
+<h2>Mes sauvegardes</h2>
+<p class="muted">Tu peux enregistrer une copie de tes tâches sur ton ordinateur et la réimporter si besoin.</p>
+<button id="export" class="secondary">Exporter mes tâches</button>
+<input id="importFile" type="file" accept=".json">
+<button id="import" class="secondary">Importer une sauvegarde</button>
+</div>
+</section>
+</main>
+
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, sendPasswordResetEmail, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+import { getFirestore, doc, onSnapshot, setDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+
+const firebaseConfig = {
+ apiKey: "AIzaSyBYUHdwrEkKVB1JH_JCK-kwfpLBqtq53sw",
+ authDomain: "pink-marketing-planner.firebaseapp.com",
+ projectId: "pink-marketing-planner",
+ storageBucket: "pink-marketing-planner.firebasestorage.app",
+ messagingSenderId: "551400198471",
+ appId: "1:551400198471:web:6f7181317060fb97863c62",
+ measurementId: "G-V5Y86H4TWL"
+};
+
+const appFirebase = initializeApp(firebaseConfig);
+const auth = getAuth(appFirebase);
+const db = getFirestore(appFirebase);
+let tasks = [];
+let currentUser = null;
+let stopListening = null;
+
+const $ = id => document.getElementById(id);
+const statuses = ["À faire","En cours","Réunions","À valider","Terminé"];
+
+$("signup").onclick = async () => {
+ try {
+ await createUserWithEmailAndPassword(auth,$("email").value,$("password").value);
+ $("message").textContent = "Compte créé ! Bienvenue Mélanie 💗";
+ } catch(e) { $("message").textContent = "Erreur : " + e.message; }
+};
+$("signin").onclick = async () => {
+ try {
+ await signInWithEmailAndPassword(auth,$("email").value,$("password").value);
+ $("message").textContent = "";
+ } catch(e) { $("message").textContent = "Vérifie ton adresse e-mail et ton mot de passe."; }
+};
+$("reset").onclick = async () => {
+ try {
+ await sendPasswordResetEmail(auth,$("email").value);
+ $("message").textContent = "Un e-mail de réinitialisation a été envoyé.";
+ } catch(e) { $("message").textContent = "Indique d'abord ton adresse e-mail."; }
+};
+$("logout").onclick = () => signOut(auth);
+
+onAuthStateChanged(auth,user => {
+ if(stopListening){stopListening();stopListening=null;}
+ currentUser=user;
+ $("login").style.display=user?"none":"block";
+ $("app").style.display=user?"block":"none";
+ if(!user)return;
+ $("who").textContent=user.email;
+ const boardRef=doc(db,"users",user.uid,"planner","board");
+ stopListening=onSnapshot(boardRef,snap=>{
+ tasks=snap.exists()?(snap.data().tasks||[]):[];
+ render();
+ },error=>{$("taskMessage").textContent="Problème de synchronisation : "+error.message;});
+});
+
+async function save(){
+ if(!currentUser)return;
+ try {
+ await setDoc(doc(db,"users",currentUser.uid,"planner","board"),{tasks});
+ $("taskMessage").textContent="Planning enregistré 💗";
+ } catch(e) {
+ $("taskMessage").textContent="Enregistrement impossible : vérifie les règles Firestore.";
+ }
+}
+$("add").onclick=async()=>{
+ const title=$("taskTitle").value.trim();
+ if(!title){$("taskMessage").textContent="Écris d'abord le nom de ta tâche.";return;}
+ tasks.push({
+ id:Date.now().toString(),title,
+ client:$("client").value,
+ deadline:$("deadline").value,
+ category:$("category").value,
+ status:$("status").value,
+ notes:$("notes").value
+ });
+ $("taskTitle").value="";
+ $("client").value="";
+ $("deadline").value="";
+ $("notes").value="";
+ await save();render();
+};
+
+function render(){
+ const query=$("search").value.toLowerCase();
+ $("columns").innerHTML="";
+ statuses.forEach(status=>{
+ const col=document.createElement("div");
+ col.className="column";
+ const heading=document.createElement("h3");
+ heading.textContent=status+" ("+tasks.filter(t=>t.status===status).length+")";
+ col.appendChild(heading);
+ tasks.filter(t=>t.status===status && (t.title+" "+t.client+" "+t.category).toLowerCase().includes(query)).forEach(t=>{
+ const card=document.createElement("div");card.className="task";
+ const title=document.createElement("strong");title.textContent=t.title;card.appendChild(title);
+ const detail=document.createElement("small");
+ detail.textContent=[t.client,t.category,t.deadline?"Échéance : "+t.deadline:""].filter(Boolean).join(" • ");
+ card.appendChild(detail);
+ if(t.notes){const note=document.createElement("p");note.textContent=t.notes;card.appendChild(note);}
+ const select=document.createElement("select");
+ statuses.forEach(s=>{const o=document.createElement("option");o.value=s;o.textContent=s;select.appendChild(o);});
+ select.value=t.status;
+ select.onchange=async()=>{t.status=select.value;await save();render();};
+ card.appendChild(select);
+ const del=document.createElement("button");del.textContent="Supprimer";del.className="danger";
+ del.onclick=async()=>{if(confirm("Supprimer cette tâche ?")){tasks=tasks.filter(x=>x.id!==t.id);await save();render();}};
+ card.appendChild(del);
+ col.appendChild(card);
+ });
+ $("columns").appendChild(col);
+ });
+ const done=tasks.filter(t=>t.status==="Terminé").length;
+ const percent=tasks.length?Math.round(done/tasks.length*100):0;
+ $("progress").textContent=done+" tâche(s) terminée(s) sur "+tasks.length+" — "+percent+" %";
+ $("bar").style.width=percent+"%";
+}
+$("search").oninput=render;
+
+$("export").onclick=()=>{
+ const blob=new Blob([JSON.stringify(tasks,null,2)],{type:"application/json"});
+ const url=URL.createObjectURL(blob);
+ const a=document.createElement("a");a.href=url;a.download="pink-marketing-planner-sauvegarde.json";a.click();
+ URL.revokeObjectURL(url);
+};
+$("import").onclick=async()=>{
+ const file=$("importFile").files[0];
+ if(!file){alert("Choisis d'abord un fichier de sauvegarde.");return;}
+ try{
+ const imported=JSON.parse(await file.text());
+ if(!Array.isArray(imported))throw new Error();
+ if(!confirm("Remplacer le planning actuel par cette sauvegarde ?"))return;
+ tasks=imported;await save();render();
+ }catch(e){alert("Ce fichier de sauvegarde n'est pas valide.");}
+};
+</script>
+</body>
+</html>
+
+
+
+Ne fais rien d'autre pour l'instant. Dis-moi simplement si tu as réussi à
